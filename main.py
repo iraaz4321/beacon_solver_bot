@@ -354,7 +354,7 @@ async def solve_beacon(ctx,
             await ctx.followup.send("Computer vision failed fully. Please use manual input!", ephemeral=True)
 
     view = main_view(ctx)
-    embed = discord.Embed(title="Beacon Solver", description="Make sure external emojis is allowed. Source code can be found [here](https://github.com/iraaz4321/starscape_beacon_solver)", colour=0xfbeb04, timestamp=datetime.datetime.utcnow())
+    embed = discord.Embed(title="Beacon Solver", description="Make sure external emojis is allowed. Source code can be found [here](https://github.com/iraaz4321/beacon_solver_bot)", colour=0xfbeb04, timestamp=datetime.datetime.utcnow())
     embed.add_field(name=f"Beacon data",
                     value=f"Target system connected count (opt): {connected}\nTarget system color (req): {target}\nRest of colors (req): {other}", inline=False)
     embed.set_footer(text="https://github.com/iraaz4321/beacon_solver_bot")
