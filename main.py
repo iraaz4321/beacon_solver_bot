@@ -1,25 +1,140 @@
 import datetime
+import pickle
+
 import discord
+import imagehash
+from PIL import Image
+from discord import app_commands
 from discord.ext import commands
 import cv2
 import numpy as np
-from discord.commands import ApplicationContext, Option
 import sqlite3
+
+from discord.ext.commands import Context
 from scipy import spatial
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-intents = discord.Intents.default()
-intents.members = True
-
-bot = commands.Bot(command_prefix="!", case_insensitive=True, intents=intents, help_command=None)
 
 
-@bot.event
-async def on_ready(): #when bot goes online
-    print("logged as {0.user}".format(bot))
+"""
+
+
+
+look_up = {"B": "<:B_:949716430901903380>",
+           "A": "<:A_:949716430545367050>",
+           "F": "<:F_:949716431031894167>",
+           "G": "<:G_:949716431627493416>",
+           "K": "<:K_:949716420416110612>",
+           "M": "<:M_:949716373397987428>",
+           "": ""
+           }
+
+
+@bot.slash_command(description="Command for solving beacon.")
+async def solve_beacon(ctx,
+                       beacon_image: Option(discord.Attachment, "Beacon image (Computer vision will attempt to read data from image for you)", required=False, default=None)):
+    await ctx.defer()
+
+
+
+
+
+    
+    target = ""
+    other = ""
+    if attachment != "":
+        img = np.asarray(bytearray(await attachment.read()), 'uint8')
+        img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+        try:
+            main, second, error = get_systems(img)
+            target = look_up[main]
+            for x in second:
+                other += look_up[x] + " "
+            if error != "":
+                await ctx.followup.send(error, ephemeral=True)
+        except Exception as e:
+            await ctx.followup.send("Computer vision failed fully. Please use manual input!", ephemeral=True)
+
+    view = main_view(ctx)
+    embed = discord.Embed(title="Beacon Solver", description="Make sure external emojis is allowed. Source code can be found [here](https://github.com/iraaz4321/beacon_solver_bot)", colour=0xfbeb04, timestamp=datetime.datetime.utcnow())
+    embed.add_field(name=f"Beacon data",
+                    value=f"Target system connected count (opt): {connected}\nTarget system color (req): {target}\nRest of colors (req): {other}", inline=False)
+    embed.set_footer(text="https://github.com/iraaz4321/beacon_solver_bot")
+    await ctx.respond(embed=embed, view=view)
+
+
+bot.run(os.getenv("token"))"""
+
+def load_pickle():
+    pickled = open('beacons.starscape', 'rb')
+    return pickle.load(pickled)
+
+hash_list = load_pickle()
+
+def find_closest_match(target_hash):
+    min_distance = float('inf')
+    closest_match = None
+
+    for hash_value in hash_list:
+        distance = target_hash - hash_value
+        if distance < min_distance:
+            min_distance = distance
+            closest_match = hash_value
+    return closest_match
+
+class Main(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix=commands.when_mentioned,
+                         intents=discord.Intents.all(),
+                         application_id=814130510544502835)
+
+
+    async def setup_hook(self):
+        await client.tree.sync()
+
+
+client = Main()
+
+@client.event
+async def on_ready():  # when bot goes online
+    print("logged as {0.user}".format(client))
+    print(len(client.guilds))
+
+
+def crop_image(screenshot):
+    gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
+    _, threshold = cv2.threshold(gray, 70, 255, cv2.THRESH_BINARY)
+
+    # Find contours of black regions
+    contours, hierarchy = cv2.findContours(threshold, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Sort by size. Second largest is the inside area
+    sorted_contours = sorted(contours, key=cv2.contourArea, reverse=True)
+    # If the edge is bad then use different method
+    if 2 >= len(sorted_contours) or cv2.contourArea(sorted_contours[1]) <= 1000:
+        # Some edges missing. Otherwise, its already cropped
+        if cv2.contourArea(sorted_contours[0]) >= 500:
+            cv2.drawContours(screenshot, [sorted_contours[0]], -1, (10,10,10), thickness=cv2.FILLED)
+            cv2.drawContours(screenshot, [sorted_contours[0]], -1, (10, 10, 10), thickness=3)
+
+        return screenshot
+
+    else:
+        cv2.drawContours(screenshot, [sorted_contours[1]], -1, (10, 10, 10), 2)
+
+        mask = np.zeros(screenshot.shape, dtype=np.uint8)
+        cv2.drawContours(mask, [sorted_contours[1]], -1, (255, 255, 255), -1)
+
+        filled = cv2.bitwise_and(screenshot, mask)
+        filled[np.all(filled == [0, 0, 0], axis=-1)] = [10, 10, 10]
+
+        x, y, w, h = cv2.boundingRect(sorted_contours[1])
+        cropped = filled[y:y + h, x:x + w]
+        return cropped
+
 
 conn = sqlite3.connect("starscape_pro.db")
 
@@ -277,7 +392,7 @@ class main_view(discord.ui.View):
         await interaction.response.edit_message(view=self)
 
     @discord.ui.button(label="Solve", style=discord.enums.ButtonStyle.red)
-    async def solve_button_callback(self, button, interaction: discord.Interaction):
+    async def solve_button_callback(self, interaction: discord.Interaction, button):
         try:
             embed = interaction.message.embeds[0]
             temp=embed.fields[0].value
@@ -297,7 +412,7 @@ class main_view(discord.ui.View):
         if not len(res):
             await interaction.followup.send("Failed to locate your beacon.", ephemeral=True)
         else:
-            await interaction.message.edit(view=self)
+            #await interaction.message.edit(view=self)
             await interaction.followup.send(", ".join(res) + " (This message will get deleted after a while. You have been warned)", ephemeral=True)
 
 
@@ -305,9 +420,6 @@ class main_view(discord.ui.View):
 
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user != self.ctx.author:
-            await interaction.response.send_message("You can't do that. Please run your own command /solve_beacon", ephemeral=True)
-            return False
         return True
 
     async def remove_useless(self, interaction: discord.Interaction):
@@ -323,6 +435,7 @@ class main_view(discord.ui.View):
             self.remove_item(y)
         await interaction.message.edit(view=self)
 
+
 look_up = {"B": "<:B_:949716430901903380>",
            "A": "<:A_:949716430545367050>",
            "F": "<:F_:949716431031894167>",
@@ -332,33 +445,66 @@ look_up = {"B": "<:B_:949716430901903380>",
            "": ""
            }
 
+class NotMyBeacon(discord.ui.View):
+    def __init__(self, beacon):
+        super().__init__()
+        self.beacon = beacon
 
-@bot.slash_command(description="Command for solving beacon.")
-async def solve_beacon(ctx,
-                       connected: Option(int, "Enter the amount of systems target location is connected to.", default = 0, min_value=0, max_value=9),
-                       attachment: Option(discord.Attachment, "Beacon image (Computer vision will attempt to read data from image for you)", required=False, default="")):
-    await ctx.defer()
-    target = ""
-    other = ""
-    if attachment != "":
-        img = np.asarray(bytearray(await attachment.read()), 'uint8')
-        img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+    @discord.ui.button(label='Not my beacon', style=discord.ButtonStyle.red)
+    async def wrong_beacon(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        other = ""
+        target = ""
         try:
-            main, second, error = get_systems(img)
+            main, second, error = get_systems(self.beacon)
             target = look_up[main]
             for x in second:
                 other += look_up[x] + " "
             if error != "":
-                await ctx.followup.send(error, ephemeral=True)
+                await interaction.followup.send(error, ephemeral=True)
         except Exception as e:
-            await ctx.followup.send("Computer vision failed fully. Please use manual input!", ephemeral=True)
+            await interaction.followup.send("Computer vision failed fully. Please use manual input!", ephemeral=True)
 
-    view = main_view(ctx)
-    embed = discord.Embed(title="Beacon Solver", description="Make sure external emojis is allowed. Source code can be found [here](https://github.com/iraaz4321/beacon_solver_bot)", colour=0xfbeb04, timestamp=datetime.datetime.utcnow())
-    embed.add_field(name=f"Beacon data",
-                    value=f"Target system connected count (opt): {connected}\nTarget system color (req): {target}\nRest of colors (req): {other}", inline=False)
+        view = main_view(interaction)
+        embed = discord.Embed(title="Beacon Solver",
+                              description="Make sure external emojis is allowed. Source code can be found [here](https://github.com/iraaz4321/beacon_solver_bot)",
+                              colour=0xfbeb04, timestamp=datetime.datetime.utcnow())
+        embed.add_field(name=f"Beacon data",
+                        value=f"Target system connected count (opt): 0\nTarget system color (req): {target}\nRest of colors (req): {other}",
+                        inline=False)
+        embed.set_footer(text="https://github.com/iraaz4321/beacon_solver_bot")
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+
+@client.tree.command(
+    name="solve_beacon",
+    description="Command for solving beacon",
+)
+@app_commands.describe(
+    beacon="Image of a beacon",
+)
+async def solve_beacon(interaction, beacon: discord.Attachment):
+    img = np.asarray(bytearray(await beacon.read()), 'uint8')
+    img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+    cropped = crop_image(img)
+    converted = cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)
+    closest = find_closest_match(imagehash.crop_resistant_hash(Image.fromarray(converted)))
+
+    if hash_list[closest] is None:
+        return await interaction.response.send("Beacon not found!")
+
+    embed = discord.Embed(title="Beacon found", description=f"Your beacon is likely at {hash_list[closest].split('.')[0]}.", colour=0xfbeb04)
     embed.set_footer(text="https://github.com/iraaz4321/beacon_solver_bot")
-    await ctx.respond(embed=embed, view=view)
+    with open(f'beaconImages/{hash_list[closest]}', 'rb') as f:
+        file = discord.File(f, filename="beacon.png")
+        embed.set_image(url="attachment://beacon.png")
 
+        view = NotMyBeacon(cropped)
 
-bot.run(os.getenv("token"))
+        await interaction.response.send_message(embed=embed, ephemeral=True, file=file,
+                                                view=view)
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+client.run(os.getenv("token"))
