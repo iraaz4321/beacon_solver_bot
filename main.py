@@ -483,6 +483,7 @@ class NotMyBeacon(discord.ui.View):
     beacon="Image of a beacon",
 )
 async def solve_beacon(interaction, beacon: discord.Attachment):
+    await interaction.response.defer()
     img = np.asarray(bytearray(await beacon.read()), 'uint8')
     img = cv2.imdecode(img, cv2.IMREAD_COLOR)
     cropped = crop_image(img)
@@ -500,7 +501,7 @@ async def solve_beacon(interaction, beacon: discord.Attachment):
 
         view = NotMyBeacon(cropped)
 
-        await interaction.response.send_message(embed=embed, ephemeral=True, file=file,
+        await interaction.followup.send(embed=embed, ephemeral=True, file=file,
                                                 view=view)
 
 from dotenv import load_dotenv
