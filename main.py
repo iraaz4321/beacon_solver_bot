@@ -483,7 +483,7 @@ class NotMyBeacon(discord.ui.View):
     beacon="Image of a beacon",
 )
 async def solve_beacon(interaction, beacon: discord.Attachment):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     img = np.asarray(bytearray(await beacon.read()), 'uint8')
     img = cv2.imdecode(img, cv2.IMREAD_COLOR)
     cropped = crop_image(img)
