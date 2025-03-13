@@ -7,6 +7,7 @@ COPY beacons.starscape .
 COPY requirements.txt .
 COPY main.py .
 COPY starscape_pro.db .
+COPY beaconImages .
 
 # Install dependencies in a single step to minimize layers
 RUN apt-get update && \
