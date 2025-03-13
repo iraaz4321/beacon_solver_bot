@@ -496,7 +496,11 @@ async def solve_beacon(interaction, beacon: discord.Attachment):
 
     embed = discord.Embed(title="Beacon found", description=f"Your beacon is likely at {hash_list[closest].split('.')[0]}.", colour=0xfbeb04)
     embed.set_footer(text="https://github.com/iraaz4321/beacon_solver_bot")
-    with open(f'beaconImages/{hash_list[closest]}', 'rb') as f:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    # Get the full path to the beaconImages directory
+    BEACON_IMAGES_PATH = os.path.join(BASE_DIR, "beaconImages")
+    with open(os.path.join(BEACON_IMAGES_PATH, hash_list[closest]), 'rb') as f:
         file = discord.File(f, filename="beacon.png")
         embed.set_image(url="attachment://beacon.png")
 
