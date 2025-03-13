@@ -482,6 +482,7 @@ class NotMyBeacon(discord.ui.View):
 @app_commands.describe(
     beacon="Image of a beacon",
 )
+@app_commands.allowed_installs(guilds=True, users=True)
 async def solve_beacon(interaction, beacon: discord.Attachment):
     await interaction.response.defer(ephemeral=True)
     img = np.asarray(bytearray(await beacon.read()), 'uint8')
@@ -504,8 +505,15 @@ async def solve_beacon(interaction, beacon: discord.Attachment):
         await interaction.followup.send(embed=embed, ephemeral=True, file=file,
                                                 view=view)
 
-from dotenv import load_dotenv
+@client.tree.command(
+    name="invite",
+)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def invite(interaction):
+    await interaction.response.defer(ephemeral=True)
+    await interaction.followup.send(f"https://discord.com/oauth2/authorize?client_id={os.getenv('application_id')}")
 
-load_dotenv()
+
+
 
 client.run(os.getenv("token"))
